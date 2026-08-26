@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多尺寸圖片縮放工具</title>
+    <!-- 引入 Tailwind CSS 進行樣式設計 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .radio-peer:checked + .radio-label {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .radio-peer:checked + .radio-label .check-icon {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans antialiased flex flex-col">
+
+    <main class="flex-grow container mx-auto px-4 py-10 max-w-5xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500 mb-3">
+                智慧圖片批次縮放工具
+            </h1>
+            <p class="text-slate-500 text-lg">快速將單張或多張圖片裁切並縮放至社群平台與列印標準尺寸</p>
+        </header>
+
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
+            <h2 class="text-lg font-bold text-slate-700 mb-4 border-l-4 border-blue-500 pl-3">步驟一：選擇目標尺寸</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="sizeOptions">
+                <!-- 選項將由 JavaScript 動態生成 -->
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 transition-all">
+            <h2 class="text-lg font-bold text-slate-700 mb-4 border-l-4 border-blue-500 pl-3">步驟二：上傳圖片 (可多選)</h2>
+            
+            <input type="file" id="fileInput" accept="image/*" multiple class="hidden" />
+            
+            <div id="dropZone" class="border-2 border-dashed border-slate-300 rounded-xl p-10 text-center cursor-pointer hover:bg-slate-50 hover:border-blue-400 transition-colors duration-300 group">
+                <svg class="mx-auto h-16 w-16 text-slate-400 group-hover:text-blue-500 transition-colors duration-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <h3 class="text-xl font-semibold text-slate-600 mb-2 group-hover:text-blue-600">點擊選擇圖片或將圖片拖曳至此</h3>
+                <p class="text-slate-400 text-sm">支援 JPG, PNG, WEBP，允許一次選擇多張檔案</p>
+            </div>
+            
+            <!-- 處理中動畫 -->
+            <div id="loading" class="hidden flex-col items-center justify-center py-10">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
+                <p class="text-blue-600 font-medium animate-pulse">圖片處理中，請稍候...</p>
+            </div>
+        </section>
+
+        <section id="resultSection" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
+            <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                <h2 class="text-lg font-bold text-slate-700 border-l-4 border-green-500 pl-3">處理完成</h2>
+                <button id="clearBtn" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg transition-colors font-medium">
+                    清除結果並重設
+                </button>
+            </div>
+            
+            <!-- 網格展示生成的圖片 -->
+            <div id="gallery" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 預覽圖卡片將由 JS 動態插入於此 -->
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 mt-auto py-6">
+        <div class="container mx-auto px-4 text-center text-slate-500 text-sm">
+            <p>Copyright &copy; 2026 Wei-CHeng Chen. All Rights Reserved.</p>
+            <p class="text-xs text-slate-400 mt-1">本工具完全在瀏覽器端執行，不會上傳您的圖片至任何伺服器。</p>
+        </div>
+    </footer>
+
+    <script>
+        // 預設的尺寸規格表
+        const dimensions = [
+            { id: 'square', name: '正方形貼文', width: 1080, height: 1080, ratio: '1:1' },
+            { id: 'vertical', name: '直式社群貼文', width: 1080, height: 1350, ratio: '4:5' },
+            { id: 'story', name: '限時動態、短影音', width: 1080, height: 1920, ratio: '9:16' },
+            { id: 'desktop', name: 'YouTube、簡報、電腦', width: 1920, height: 1080, ratio: '16:9' },
+            { id: 'a4', name: 'A4 列印', width: 2480, height: 3508, ratio: '1:1.414' },
+        ];
+
+        let selectedDimension = dimensions[0]; // 預設選中第一個 (正方形)
+
+        // 取得 DOM 元素
+        const sizeOptionsContainer = document.getElementById('sizeOptions');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const loading = document.getElementById('loading');
+        const resultSection = document.getElementById('resultSection');
+        const gallery = document.getElementById('gallery');
+        const clearBtn = document.getElementById('clearBtn');
+
+        // 初始化尺寸選項 Radio Buttons
+        function initSizeOptions() {
+            dimensions.forEach((dim, index) => {
+                const isChecked = index === 0 ? 'checked' : '';
+                const html = `
+                    <div class="relative">
+                        <input type="radio" name="size" id="${dim.id}" value="${index}" class="radio-peer hidden" ${isChecked}>
+                        <label for="${dim.id}" class="radio-label flex flex-col p-4 border-2 border-slate-200 rounded-xl cursor-pointer transition-all hover:bg-slate-50">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-bold text-slate-700">${dim.name}</span>
+                                <svg class="check-icon w-5 h-5 text-blue-500 opacity-0 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="text-sm text-slate-500 flex justify-between">
+                                <span>${dim.width} &times; ${dim.height} px</span>
+                                <span class="bg-slate-200 px-2 rounded text-xs font-mono">${dim.ratio}</span>
+                            </div>
+                        </label>
+                    </div>
+                `;
+                sizeOptionsContainer.insertAdjacentHTML('beforeend', html);
+            });
+
+            // 綁定 Radio 改變事件，更新目前選擇的尺寸
+            const radios = document.querySelectorAll('input[name="size"]');
+            radios.forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    selectedDimension = dimensions[e.target.value];
+                });
+            });
+        }
+
+        // 點擊觸發上傳
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        // 拖曳特效與事件處理
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('bg-blue-50', 'border-blue-400');
+        });
+        
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFiles(e.target.files);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            gallery.innerHTML = '';
+            resultSection.classList.add('hidden');
+            fileInput.value = '';
+        });
+
+        // 處理接收到的檔案集合
+        async function handleFiles(files) {
+            // 過濾出圖片檔案
+            const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            
+            if (imageFiles.length === 0) {
+                // 自訂簡短提示 UI 以取代 alert()
+                const msg = document.createElement('div');
+                msg.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded shadow-lg z-50';
+                msg.textContent = '請上傳有效的圖片檔案！';
+                document.body.appendChild(msg);
+                setTimeout(() => msg.remove(), 3000);
+                return;
+            }
+
+            // UI 狀態切換
+            dropZone.classList.add('hidden');
+            loading.classList.remove('hidden');
+            gallery.innerHTML = ''; // 清空先前的結果
+
+            // 逐一處理圖片 (使用 Promise 確保順序與完成狀態)
+            for (const file of imageFiles) {
+                try {
+                    const resultData = await processSingleImage(file, selectedDimension);
+                    renderResultCard(resultData);
+                } catch (error) {
+                    console.error("處理圖片失敗:", file.name, error);
+                }
+            }
+
+            // 恢復 UI 狀態並顯示結果
+            loading.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            resultSection.classList.remove('hidden');
+            
+            // 捲動至結果區塊
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // 單張圖片處理函式 (回傳 Promise)
+        function processSingleImage(file, targetDim) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = targetDim.width;
+                        canvas.height = targetDim.height;
+                        const ctx = canvas.getContext('2d');
+
+                        // --- 智慧滿版裁切演算法 (Cover 模式) ---
+                        const imgRatio = img.width / img.height;
+                        const targetRatio = targetDim.width / targetDim.height;
+
+                        let sWidth = img.width;
+                        let sHeight = img.height;
+                        let sx = 0;
+                        let sy = 0;
+
+                        if (imgRatio > targetRatio) {
+                            // 原圖較寬，裁切左右
+                            sWidth = img.height * targetRatio;
+                            sx = (img.width - sWidth) / 2;
+                        } else {
+                            // 原圖較高，裁切上下
+                            sHeight = img.width / targetRatio;
+                            sy = (img.height - sHeight) / 2;
+                        }
+
+                        // 將計算好的範圍繪製到畫布上
+                        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetDim.width, targetDim.height);
+
+                        // 轉出為 JPEG，並將原檔名去掉副檔名，加上尺寸標記
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+                        const originalName = file.name.replace(/\.[^/.]+$/, "");
+                        const newFileName = `${originalName}_${targetDim.width}x${targetDim.height}.jpg`;
+
+                        resolve({
+                            fileName: newFileName,
+                            dataUrl: dataUrl,
+                            dimName: targetDim.name
+                        });
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 渲染單一圖片結果卡片
+        function renderResultCard(data) {
+            const card = document.createElement('div');
+            card.className = 'bg-slate-50 rounded-xl overflow-hidden border border-slate-200 flex flex-col group';
+            
+            card.innerHTML = `
+                <!-- 圖片預覽區域 -->
+                <div class="relative h-48 bg-slate-200 overflow-hidden flex items-center justify-center">
+                    <img src="${data.dataUrl}" alt="預覽圖" class="max-w-full max-h-full object-contain p-2 transition-transform duration-500 group-hover:scale-105" />
+                    <div class="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                        ${data.dimName}
+                    </div>
+                </div>
+                
+                <!-- 資訊與下載按鈕 -->
+                <div class="p-4 flex flex-col flex-grow">
+                    <p class="text-sm font-medium text-slate-700 truncate mb-3" title="${data.fileName}">${data.fileName}</p>
+                    
+                    <a href="${data.dataUrl}" download="${data.fileName}" class="mt-auto flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        下載圖片
+                    </a>
+                </div>
+            `;
+            
+            gallery.appendChild(card);
+        }
+
+        // 執行初始化
+        initSizeOptions();
+    </script>
+</body>
+</html>

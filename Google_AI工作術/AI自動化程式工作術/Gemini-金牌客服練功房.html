@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金牌客服練功房</title>
+    <!-- 引入 Tailwind CSS 進行快速響應式排版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自訂字體與動畫設定 */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* 隱藏原生滾動條，保持畫面簡潔 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 
+        【程式設計思路說明】
+        1. 狀態管理 (State Management)：採用純 JavaScript 變數 (currentQuestion, score) 管理狀態，不寫入任何瀏覽器儲存空間，確保重整後個資與進度完全清除，符合安全規範。
+        2. 單頁應用 (SPA) 架構：透過操控 DOM 元素的 class (hidden) 來切換「首頁」、「測驗頁」、「結果頁」，提供無縫流暢的使用者體驗，無須重新載入頁面。
+        3. 資料結構化：將教材內容轉化為 JSON 格式的陣列物件 (questions)，包含類別、難度、情境、選項與解析，方便未來擴充或修改題目。
+        4. 延遲回饋機制：刻意將「解析」預設為隱藏，必須等待使用者選擇並點擊「送出」後才動態生成並顯示，符合教育訓練中的「思考後驗證」學習閉環。
+        5. 響應式與視覺層次：使用 Tailwind CSS 確保手機與電腦皆易於點擊。運用色彩心理學：藍色(專業/介面)、綠色(正確)、紅色(錯誤)、灰色(禁用)，降低認知負擔。
+    -->
+
+    <!-- 主容器 -->
+    <main class="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col relative fade-in" style="min-height: 85vh;">
+        
+        <!-- ==================== 1. 首頁區塊 ==================== -->
+        <div id="start-screen" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">金牌客服練功房</h1>
+            <p class="text-gray-600 mb-6 leading-relaxed">
+                有禮貌只是門票。真正能讓客戶安心的回覆，會讓他清楚知道：<br>
+                <span class="font-bold text-blue-600">你聽懂了什麼、現在能做什麼、何時會有結果。</span>
+            </p>
+            <div class="bg-gray-50 p-4 rounded-lg w-full max-w-sm mb-8 text-left">
+                <p class="font-bold text-gray-700 mb-2">💡 核心骨架：接、查、解、約、留</p>
+                <ul class="text-sm text-gray-600 space-y-1 list-disc pl-5">
+                    <li>接：承接情緒，說出具體狀況</li>
+                    <li>查：確認訂單，只問必要資訊</li>
+                    <li>解：提出方案，說明差異限制</li>
+                    <li>約：給明確時間點 (非"盡快")</li>
+                    <li>留：留下追蹤方式或案號</li>
+                </ul>
+            </div>
+            <button onclick="startGame()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:scale-105 active:scale-95">
+                開始測驗
+            </button>
+        </div>
+
+        <!-- ==================== 2. 測驗區塊 ==================== -->
+        <div id="quiz-screen" class="hidden flex-1 flex flex-col p-6 w-full fade-in">
+            <!-- 進度條 -->
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-6">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            
+            <!-- 題目標頭資訊 -->
+            <div class="flex justify-between items-end mb-4">
+                <div>
+                    <span id="q-category" class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-md font-semibold tracking-wide"></span>
+                    <span id="q-difficulty" class="ml-2 text-yellow-500 text-sm"></span>
+                </div>
+                <div class="text-gray-500 font-bold text-sm">
+                    第 <span id="q-number" class="text-blue-600 text-lg"></span> / <span id="q-total"></span> 題
+                </div>
+            </div>
+
+            <!-- 客戶訊息區 (模擬對話框) -->
+            <div class="bg-gray-100 p-5 rounded-2xl rounded-tl-none relative mb-6 shadow-sm border border-gray-200">
+                <div class="absolute -top-3 -left-2 bg-gray-600 text-white text-xs px-2 py-0.5 rounded shadow">客戶訊息</div>
+                <p id="q-scenario" class="text-gray-800 text-lg leading-relaxed mt-2"></p>
+            </div>
+
+            <!-- 選項區 -->
+            <div id="options-container" class="space-y-3 flex-1">
+                <!-- 選項按鈕會透過 JS 動態生成在這裡 -->
+            </div>
+
+            <!-- 解析區 (預設隱藏) -->
+            <div id="analysis-container" class="hidden mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg fade-in">
+                <h4 class="font-bold text-blue-800 mb-2 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                    教練解析
+                </h4>
+                <p id="q-analysis" class="text-sm text-gray-700 leading-relaxed"></p>
+            </div>
+
+            <!-- 控制按鈕 -->
+            <div class="mt-6 flex justify-end">
+                <button id="btn-submit" onclick="submitAnswer()" disabled class="bg-gray-300 text-gray-500 font-bold py-3 px-8 rounded-lg cursor-not-allowed transition-colors">
+                    送出答案
+                </button>
+                <button id="btn-next" onclick="nextQuestion()" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition shadow-md">
+                    下一題
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== 3. 結果區塊 ==================== -->
+        <div id="result-screen" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center fade-in">
+            <h2 class="text-3xl font-bold text-gray-800 mb-2">測驗完成！</h2>
+            <p id="result-title" class="text-xl font-bold mb-6"></p>
+            
+            <div class="relative w-32 h-32 mb-6">
+                <svg class="w-full h-full" viewBox="0 0 36 36">
+                    <path class="text-gray-200" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path id="score-circle" class="text-blue-600" stroke-dasharray="0, 100" stroke-width="3" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center flex-col">
+                    <span id="final-score" class="text-3xl font-bold text-gray-800"></span>
+                    <span class="text-xs text-gray-500">分</span>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 p-5 rounded-xl w-full text-left mb-8 shadow-inner">
+                <h3 class="font-bold text-gray-800 mb-3 border-b pb-2">📋 總結摘要</h3>
+                <ul class="text-sm text-gray-600 space-y-2">
+                    <li>✅ 遇到情緒，先**承接**問題，不急著辯解。</li>
+                    <li>✅ 要求客戶提供資訊時，**只索取必要項目**。</li>
+                    <li>✅ 承諾回覆時，必須給出**明確的時間點** (如: 18:00前)。</li>
+                    <li>✅ 不把責任推給物流或系統，專注在**我們能做什麼**。</li>
+                    <li>✅ 送出前檢查：方案是否清晰？邊界是否拿捏好？</li>
+                </ul>
+            </div>
+
+            <button onclick="resetGame()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-lg transition">
+                再練習一次
+            </button>
+        </div>
+    </main>
+
+    <!-- 頁尾版權聲明 -->
+    <footer class="mt-6 text-center text-sm text-gray-400">
+        Copyright &copy; 2026 Wei-CHeng Chen. All Rights Reserved.
+    </footer>
+
+    <!-- ==================== JavaScript 邏輯 ==================== -->
+    <script>
+        // 題目資料庫 (擷取自訓練文件)
+        const quizData = [
+            {
+                id: 1,
+                category: "A區｜延遲",
+                difficulty: "⭐⭐",
+                scenario: "你們不是說週五會到嗎？今天都星期一了，查物流還停在轉運站。我明天就要送人，現在到底在哪裡？",
+                options: [
+                    { text: "不好意思造成您的不便，物流目前比較忙碌，請您再耐心等候，我們會盡快為您處理。", isCorrect: false },
+                    { text: "您好，看到包裹超過原訂時間未到確實會著急，尤其您明天要送人。我會立即向物流確認，並在今天 16:00 前回覆您查詢結果。若時程無法配合，我也會提供後續方案讓您決定。", isCorrect: true },
+                    { text: "您好，系統顯示我們上週已經出貨了，是物流那邊卡在轉運站延遲。我馬上幫您聯絡物流，明天一定會讓您收到。", isCorrect: false }
+                ],
+                analysis: "正確選項做到了：【接】承接對方著急的情緒與用途、【查】立即向物流確認、【約】給出明確時間點 16:00、【邊界】不隨便承諾明天一定到。選項一太空泛(盡快)；選項三把責任推給物流且過度承諾(一定收到)。"
+            },
+            {
+                id: 2,
+                category: "B區｜瑕疵",
+                difficulty: "⭐⭐",
+                scenario: "剛拆箱就看到外殼有一條很明顯的刮痕。買新品收到這樣真的很失望，請問要怎麼處理？",
+                options: [
+                    { text: "您好，商品出貨前我們都有嚴格檢查，理論上不會有刮痕。請問您拆箱時有使用美工刀嗎？", isCorrect: false },
+                    { text: "您好，非常抱歉讓您收到有瑕疵的商品。為了補償您，請您提供帳號，我們會立刻為您辦理全額退款，商品您直接丟棄即可。", isCorrect: false },
+                    { text: "您好，新品收到刮痕確實不符期待，抱歉讓您失望。為安排後續，請提供刮痕近照、商品整體照與訂單編號。收到後我會在 2 小時內確認換貨方式與取件安排，運費由我們負擔。", isCorrect: true }
+                ],
+                analysis: "正確選項做到了：【接】承接失望情緒不反駁、【查】只索取 3 項必要資訊(近照/整體照/單號)、【約】給出 2 小時的時間點。選項一帶有指責客戶的意味；選項二在資訊不足時就過度承諾退款。"
+            },
+            {
+                id: 3,
+                category: "C區｜錯寄 (個資風險)",
+                difficulty: "⭐⭐⭐",
+                scenario: "包裹裡不是我的東西，出貨單還有別人的姓名和電話。這很嚴重吧？",
+                options: [
+                    { text: "您好，這確實涉及個人資料。已將此案列為優先並通報。請先勿丟棄出貨單，不必拍攝他人個資，並暫時保管包裹。我會在今日 15:00 前聯絡您安排安全取回與正確商品處理方式。", isCorrect: true },
+                    { text: "您好，真的非常抱歉我們倉庫包裝錯誤！麻煩您拍下那張出貨單傳給我們，我們才能去查是誰的包裹寄錯了。查到後會馬上為您補寄正確商品。", isCorrect: false },
+                    { text: "您好，不好意思寄錯了。請您依公司規定辦理退貨，將包裹寄回。我們收到後會盡快把您原本訂購的商品重新寄出。", isCorrect: false }
+                ],
+                analysis: "此為升級情境！正確選項做到了：【邊界】立刻通報且主動阻止客戶拍攝/轉傳他人個資，防堵外洩風險、【約】給予 15:00 的處理時限。選項二要求拍攝個資是大忌；選項三完全忽略了個資外洩的嚴重性。"
+            },
+            {
+                id: 4,
+                category: "D區｜混合情境",
+                difficulty: "⭐⭐⭐",
+                scenario: "晚了四天才收到，結果一開機螢幕還會閃。這不是一句抱歉能解決的，我要你們主管回覆。",
+                options: [
+                    { text: "您好，螢幕會閃爍可能是排線問題，麻煩您錄影傳給我們，確認後會幫您換貨。因為客服都有權限處理，不一定需要主管出面喔。", isCorrect: false },
+                    { text: "您好，晚了四天收到商品又遇到螢幕異常，真的非常抱歉。我已經將您的案件與情況完整記錄並轉交給主管。主管會在今天 17:00 前親自與您電話聯繫說明後續處理方式。", isCorrect: true },
+                    { text: "您好，非常抱歉物流延遲。關於螢幕閃爍的問題，請您提供訂單編號。我會請主管盡快回覆您。", isCorrect: false }
+                ],
+                analysis: "正確選項做到了：【接】同時承認延遲與瑕疵兩個問題、【解與留】清楚交接給主管，不需客戶重講一次，並【約】出主管聯絡的時間點(17:00前)。選項一拒絕合理升級需求；選項三缺乏明確時間點且遺漏了瑕疵情緒的承接。"
+            },
+            {
+                id: 5,
+                category: "C區｜錯寄",
+                difficulty: "⭐⭐",
+                scenario: "我買黑色，你們寄白色來。週末就要用，換貨來得及嗎？",
+                options: [
+                    { text: "您好，真的非常抱歉倉庫寄錯了！我們今天馬上幫您補寄黑色，物流一般是 2-3 天，所以週末前應該來得及收到，請您不用擔心。", isCorrect: false },
+                    { text: "您好，您訂的是黑色卻收到白色，非常抱歉。目前黑色有庫存，我們今天可安排換貨，但依目前物流狀況，無法保證能在週末前送達。若您急用，是否考慮先保留白色，我們提供部分退款補償？", isCorrect: true },
+                    { text: "您好，抱歉寄錯顏色。如果要換貨的話，請您先將白色寄回，我們確認無誤後，會盡速將黑色寄給您。", isCorrect: false }
+                ],
+                analysis: "正確選項做到了：【接】承認錯誤、【解】說明可換貨，但清楚設立【邊界】(無法保證週末前到)，並主動提出備案(留用+補償)。選項一使用了模糊的「應該來得及」，若週末沒到會引發更大客訴。"
+            }
+        ];
+
+        // 狀態變數
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let selectedOptionIndex = null;
+        let isAnswerSubmitted = false;
+
+        // DOM 元素選取
+        const els = {
+            startScreen: document.getElementById('start-screen'),
+            quizScreen: document.getElementById('quiz-screen'),
+            resultScreen: document.getElementById('result-screen'),
+            progressBar: document.getElementById('progress-bar'),
+            qCategory: document.getElementById('q-category'),
+            qDifficulty: document.getElementById('q-difficulty'),
+            qNumber: document.getElementById('q-number'),
+            qTotal: document.getElementById('q-total'),
+            qScenario: document.getElementById('q-scenario'),
+            optionsContainer: document.getElementById('options-container'),
+            analysisContainer: document.getElementById('analysis-container'),
+            qAnalysis: document.getElementById('q-analysis'),
+            btnSubmit: document.getElementById('btn-submit'),
+            btnNext: document.getElementById('btn-next')
+        };
+
+        function startGame() {
+            // 切換畫面
+            els.startScreen.classList.add('hidden');
+            els.quizScreen.classList.remove('hidden');
+            
+            // 初始化變數
+            currentQuestionIndex = 0;
+            score = 0;
+            els.qTotal.textContent = quizData.length;
+            
+            renderQuestion();
+        }
+
+        function renderQuestion() {
+            const q = quizData[currentQuestionIndex];
+            
+            // 重置狀態
+            selectedOptionIndex = null;
+            isAnswerSubmitted = false;
+            els.analysisContainer.classList.add('hidden');
+            
+            // 按鈕重置
+            els.btnSubmit.classList.remove('hidden');
+            els.btnSubmit.disabled = true;
+            els.btnSubmit.className = "bg-gray-300 text-gray-500 font-bold py-3 px-8 rounded-lg cursor-not-allowed transition-colors w-full sm:w-auto";
+            els.btnNext.classList.add('hidden');
+
+            // 填入資料
+            els.qCategory.textContent = q.category;
+            els.qDifficulty.textContent = q.difficulty;
+            els.qNumber.textContent = currentQuestionIndex + 1;
+            els.qScenario.textContent = q.scenario;
+            els.qAnalysis.textContent = q.analysis;
+
+            // 更新進度條
+            const progress = (currentQuestionIndex / quizData.length) * 100;
+            els.progressBar.style.width = `${progress}%`;
+
+            // 渲染選項
+            els.optionsContainer.innerHTML = '';
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-4 rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 text-gray-700 bg-white shadow-sm";
+                btn.onclick = () => handleOptionClick(index);
+                btn.innerHTML = `
+                    <div class="flex items-start">
+                        <span class="inline-flex items-center justify-center h-6 w-6 rounded-full border border-gray-400 text-xs text-gray-500 mr-3 mt-0.5 flex-shrink-0">${String.fromCharCode(65 + index)}</span>
+                        <span>${opt.text}</span>
+                    </div>
+                `;
+                els.optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleOptionClick(index) {
+            if (isAnswerSubmitted) return; // 送出後禁止修改
+
+            selectedOptionIndex = index;
+            
+            // 更新選項 UI (單選反白)
+            const buttons = els.optionsContainer.children;
+            for (let i = 0; i < buttons.length; i++) {
+                const icon = buttons[i].querySelector('span');
+                if (i === index) {
+                    buttons[i].className = "w-full text-left p-4 rounded-xl border-2 border-blue-500 bg-blue-50 transition-all duration-200 text-blue-900 shadow-md";
+                    icon.className = "inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white text-xs mr-3 mt-0.5 flex-shrink-0";
+                } else {
+                    buttons[i].className = "w-full text-left p-4 rounded-xl border-2 border-gray-200 text-gray-700 bg-white transition-all duration-200 shadow-sm";
+                    icon.className = "inline-flex items-center justify-center h-6 w-6 rounded-full border border-gray-400 text-xs text-gray-500 mr-3 mt-0.5 flex-shrink-0";
+                }
+            }
+
+            // 啟用送出按鈕
+            els.btnSubmit.disabled = false;
+            els.btnSubmit.className = "bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform active:scale-95 w-full sm:w-auto";
+        }
+
+        function submitAnswer() {
+            if (selectedOptionIndex === null || isAnswerSubmitted) return;
+            isAnswerSubmitted = true;
+
+            const q = quizData[currentQuestionIndex];
+            const buttons = els.optionsContainer.children;
+            const isCorrect = q.options[selectedOptionIndex].isCorrect;
+
+            if (isCorrect) {
+                score += 20; // 每題 20 分 (共 5 題 100分)
+            }
+
+            // 顯示正確與錯誤 UI
+            for (let i = 0; i < buttons.length; i++) {
+                buttons[i].onclick = null; // 移除點擊事件
+                buttons[i].classList.remove('hover:border-blue-300', 'hover:bg-blue-50');
+                
+                const icon = buttons[i].querySelector('span');
+
+                if (q.options[i].isCorrect) {
+                    // 正確答案標示綠色
+                    buttons[i].className = "w-full text-left p-4 rounded-xl border-2 border-green-500 bg-green-50 text-green-900 shadow-sm relative";
+                    icon.className = "inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-500 text-white text-xs mr-3 mt-0.5 flex-shrink-0";
+                    icon.innerHTML = "✓";
+                } else if (i === selectedOptionIndex && !isCorrect) {
+                    // 選錯的標示紅色
+                    buttons[i].className = "w-full text-left p-4 rounded-xl border-2 border-red-400 bg-red-50 text-red-900 shadow-sm relative opacity-80";
+                    icon.className = "inline-flex items-center justify-center h-6 w-6 rounded-full bg-red-500 text-white text-xs mr-3 mt-0.5 flex-shrink-0";
+                    icon.innerHTML = "✕";
+                } else {
+                    // 其他淡化
+                    buttons[i].classList.add('opacity-50');
+                }
+            }
+
+            // 展開解析區塊
+            els.analysisContainer.classList.remove('hidden');
+
+            // 切換按鈕
+            els.btnSubmit.classList.add('hidden');
+            els.btnNext.classList.remove('hidden');
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            
+            if (currentQuestionIndex < quizData.length) {
+                renderQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        function showResults() {
+            // 切換畫面
+            els.quizScreen.classList.add('hidden');
+            els.resultScreen.classList.remove('hidden');
+
+            // 更新滿度條到 100%
+            els.progressBar.style.width = '100%';
+
+            // 計算結果文字與動態畫圓
+            document.getElementById('final-score').textContent = score;
+            const circle = document.getElementById('score-circle');
+            circle.style.strokeDasharray = `${score}, 100`;
+
+            const titleEl = document.getElementById('result-title');
+            if (score === 100) {
+                titleEl.innerHTML = "🏆 金牌客服誕生！";
+                titleEl.className = "text-2xl font-bold mb-6 text-yellow-600";
+                circle.classList.replace('text-blue-600', 'text-yellow-500');
+            } else if (score >= 60) {
+                titleEl.innerHTML = "👍 潛力新星，再接再厲！";
+                titleEl.className = "text-2xl font-bold mb-6 text-blue-600";
+            } else {
+                titleEl.innerHTML = "💪 觀念還需磨練，別灰心！";
+                titleEl.className = "text-2xl font-bold mb-6 text-gray-600";
+                circle.classList.replace('text-blue-600', 'text-red-500');
+            }
+        }
+
+        function resetGame() {
+            // 重整頁面，確保所有狀態清空 (最安全的無痕做法)
+            window.scrollTo(0, 0);
+            location.reload();
+        }
+    </script>
+</body>
+</html>
