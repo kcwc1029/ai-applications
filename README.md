@@ -15,6 +15,7 @@
 ## Google AI工作術
 
 - [AI資料整理術](./Google_AI工作術/AI資料整理術/AI資料整理術.md)
+- [AI文字與語音轉換](./Google_AI工作術/AI文字與語音轉換/AI文字與語音轉換.md)
 - [Google Sheets活用術](./Google_AI工作術/Google_Sheets活用術/Google_Sheets活用術.md)
 - [AI知識管理&情報研究術](./Google_AI工作術/AI知識管理&情報研究術/AI知識管理&情報研究術.md)
 - [AI郵件管理術](./Google_AI工作術/AI郵件管理術/AI郵件管理術.md)
@@ -26,6 +27,7 @@
 - [AI設計生成術](./Google_AI工作術/AI設計生成術/AI設計生成術.md)
 - [AI文案行銷術](./Google_AI工作術/AI文案行銷術/AI文案行銷術.md)
 - [AI影音廣告術](./Google_AI工作術/AI影音廣告術/AI影音廣告術.md)
+- [Gemini Canvas 完整應用](./Google_AI工作術/Gemini_Canvas完整應用/Gemini_Canvas完整應用.md)
 
 ```text
 把圖片中的內容，寫成可以直接教課得教材給我
